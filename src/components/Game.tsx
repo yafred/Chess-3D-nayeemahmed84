@@ -61,6 +61,7 @@ const Game = () => {
     const [connectionStatusMessage, setConnectionStatusMessage] = useState<'connected' | 'disconnected' | null>(null);
     const [trainingMode, setTrainingMode] = useState<TrainingMode>('menu');
     const [showTraining, setShowTraining] = useState(false);
+    const [chatHighlightSquares, setChatHighlightSquares] = useState<any[]>([]);
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -194,6 +195,35 @@ const Game = () => {
         }
     }, [connectionStatusMessage]);
 
+    // Handle move highlights from chat
+    useEffect(() => {
+        const handleMoveHighlight = (e: any) => {
+            const moveNotation = e.detail;
+            try {
+                // Find potential squares for this notation
+                const moves = game.moves({ verbose: true });
+                const targetMove = moves.find(m => m.san === moveNotation);
+
+                if (targetMove) {
+                    setChatHighlightSquares([targetMove.from, targetMove.to]);
+                    setTimeout(() => setChatHighlightSquares([]), 3000);
+                } else {
+                    // Coordinates detection (like 'e4')
+                    const coordRegex = /^[a-h][1-8]$/;
+                    if (coordRegex.test(moveNotation)) {
+                        setChatHighlightSquares([moveNotation]);
+                        setTimeout(() => setChatHighlightSquares([]), 3000);
+                    }
+                }
+            } catch (err) {
+                console.error('Highlight error:', err);
+            }
+        };
+
+        window.addEventListener('chess-chat-move-highlight' as any, handleMoveHighlight);
+        return () => window.removeEventListener('chess-chat-move-highlight' as any, handleMoveHighlight);
+    }, [game]);
+
     // Watch for connection status changes
     useEffect(() => {
         if (gameMode === 'online') {
@@ -281,6 +311,7 @@ const Game = () => {
                         attackedSquares={attackedSquares}
                         opponentSelection={opponentSelection}
                         isSpectator={isSpectator}
+                        chatHighlightSquares={chatHighlightSquares}
                     />
                 </React.Suspense>
             </Canvas>

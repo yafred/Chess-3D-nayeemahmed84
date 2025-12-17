@@ -16,9 +16,10 @@ interface BoardProps {
     opponentSelection: Square | null;
     onInteractionChange: (isInteracting: boolean) => void;
     isSpectator: boolean;
+    chatHighlightSquares: Square[];
 }
 
-export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, hintMove, attackedSquares, opponentSelection, onInteractionChange, isSpectator }: BoardProps) => {
+export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, hintMove, attackedSquares, opponentSelection, onInteractionChange, isSpectator, chatHighlightSquares }: BoardProps) => {
     const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
     const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
     const [draggedPiece, setDraggedPiece] = useState<{ id: string, type: string, color: string, startSquare: Square } | null>(null);
@@ -168,6 +169,14 @@ export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkS
                     // 3D Bevel/Emboss effect (same as possible moves)
                     height = 0.12; // Slightly raised
                     radius = 0.05; // Beveled edges
+                    smoothness = 4;
+                } else if (chatHighlightSquares.includes(sq.name)) {
+                    // Chat highlight - Cyan/Light Blue
+                    color = sq.isBlack ? '#003344' : '#006688';
+                    emissive = '#00ffff';
+                    emissiveIntensity = 0.5;
+                    height = 0.12;
+                    radius = 0.05;
                     smoothness = 4;
                 } else if (hintMove && (hintMove.from === sq.name || hintMove.to === sq.name)) {
                     // Hint move - Greenish/Gold

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, X, MessageCircle, Lock, Shield, Smile, Paperclip, Trash2, Loader, Download, ZoomIn, ZoomOut, Reply, Edit2, Check, CheckCheck, Eye } from 'lucide-react';
+import { Send, X, MessageCircle, Lock, Shield, Smile, Paperclip, Trash2, Loader, Download, ZoomIn, ZoomOut, Reply, Edit2, Check, CheckCheck, Eye, Search } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { multiplayerService } from '../services/MultiplayerService';
 import messageSoundUrl from '../assets/sounds/message.mp3';
@@ -41,8 +41,24 @@ const isOnlyEmojis = (text: string) => {
     if (!text) return false;
     const noSpace = text.replace(/\s/g, '');
     if (noSpace.length === 0) return false;
-    return /^[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{200D}\u{FE0F}]+$/u.test(noSpace);
+    // Enhanced regex for emojis
+    const emojiRegex = /^(\ud83c[\udf00-\udfff]|\ud83d[\udc00-\ude4f\ude80-\udeff]|\ud83e[\udd00-\uddff]|\ud83c[\udde6-\uddef]|\u2600-\u26FF|[\u2700-\u27BF]|\u200D|\uFE0F|\u20E3)+$/;
+    return emojiRegex.test(noSpace);
 };
+
+const chatStyles = `
+@keyframes floatEmoji {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    25% { transform: translateY(-10px) rotate(5deg); }
+    50% { transform: translateY(-5px) rotate(-5deg); }
+    75% { transform: translateY(-12px) rotate(3deg); }
+}
+
+@keyframes pulseBig {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.9; }
+}
+`;
 
 const stripMetadata = (file: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -92,7 +108,10 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
 
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -559,8 +578,8 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
         <>
             <style>
                 {`
-                    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                `}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+`}
             </style>
             <button
                 onClick={onToggle}
@@ -633,6 +652,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                         transition: 'all 0.2s ease'
                     }}
                 >
+                    <style>{chatStyles}</style>
                     {isDragging && (
                         <div style={{
                             position: 'absolute',
@@ -681,6 +701,24 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button
+                                onClick={() => {
+                                    setIsSearching(!isSearching);
+                                    if (!isSearching) setSearchQuery('');
+                                }}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: isSearching ? '#3b82f6' : 'rgba(255,255,255,0.5)',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                }}
+                                title="Search messages"
+                            >
+                                <Search size={16} />
+                            </button>
+                            <button
                                 onClick={handleClearHistory}
                                 disabled={!isOpponentConnected || messages.length === 0}
                                 style={{
@@ -720,6 +758,28 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                         Messages are end-to-end encrypted and not saved.
                     </div>
 
+                    {isSearching && (
+                        <div style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            <input
+                                type="text"
+                                placeholder="Search messages..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                autoFocus
+                                style={{
+                                    width: '100%',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '8px',
+                                    padding: '6px 12px',
+                                    color: 'white',
+                                    fontSize: '12px',
+                                    outline: 'none'
+                                }}
+                            />
+                        </div>
+                    )}
+
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
@@ -735,199 +795,268 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                                 <p>Say hello! 👋</p>
                             </div>
                         ) : (
-                            messages.map(msg => (
-                                <div
-                                    key={msg.id}
-                                    style={{
-                                        alignSelf: msg.sender === 'me' ? 'flex-end' : 'flex-start',
-                                        maxWidth: '80%',
-                                        position: 'relative'
-                                    }}
-                                    onMouseEnter={() => setHoveredMessageId(msg.id)}
-                                    onMouseLeave={() => setHoveredMessageId(null)}
-                                    onDoubleClick={() => {
-                                        setReplyingTo(msg);
-                                        inputRef.current?.focus();
-                                    }}
-                                >
-                                    <div style={{
-                                        background: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? 'transparent' : (msg.sender === 'me' ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
-                                        padding: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '0' : (msg.image ? '4px' : '8px 12px'),
-                                        borderRadius: msg.sender === 'me' ? '12px 12px 0 12px' : '12px 12px 12px 0',
-                                        fontSize: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '48px' : '13px',
-                                        lineHeight: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '1.2' : '1.5',
-                                        color: 'white',
-                                        wordBreak: 'break-word',
-                                        position: 'relative',
-                                        marginBottom: Object.values(msg.reactions).length > 0 ? '14px' : '0'
-                                    }}>
-                                        {msg.sender !== 'me' && (
-                                            <div style={{
-                                                fontSize: '10px',
-                                                fontWeight: 700,
-                                                marginBottom: '4px',
-                                                color: msg.senderRole === 'host' ? '#facc15' : 'rgba(255,255,255,0.7)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px'
-                                            }}>
-                                                {msg.senderName || 'Anonymous'}
-                                                {msg.senderRole === 'host' && <Shield size={10} />}
-                                                <span style={{
-                                                    fontSize: '9px',
-                                                    opacity: 0.5,
-                                                    textTransform: 'uppercase',
-                                                    padding: '1px 4px',
-                                                    background: 'rgba(255,255,255,0.1)',
-                                                    borderRadius: '4px'
-                                                }}>
-                                                    {msg.senderRole}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {msg.image ? (
-                                            <img
-                                                src={msg.image}
-                                                alt="Shared"
-                                                style={{ maxWidth: '100%', borderRadius: '8px', cursor: 'zoom-in', display: 'block' }}
-                                                onClick={() => { setSelectedImage({ src: msg.image!, id: msg.id }); setZoom(1); }}
-                                            />
-                                        ) : (
-                                            msg.text && (
-                                                <div style={{ fontSize: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '48px' : '13px' }}>
-                                                    {msg.replyTo && (
-                                                        <div style={{
-                                                            borderLeft: '2px solid rgba(255,255,255,0.3)',
-                                                            paddingLeft: '8px',
-                                                            marginBottom: '6px',
-                                                            fontSize: '11px',
-                                                            opacity: 0.7
-                                                        }}>
-                                                            <div style={{ fontWeight: 'bold' }}>{msg.replyTo.sender === 'me' ? 'You' : 'Opponent'}</div>
-                                                            <div style={{
-                                                                whiteSpace: 'nowrap',
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
-                                                                maxWidth: '150px'
-                                                            }}>
-                                                                {msg.replyTo.text}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    <ReactMarkdown
-                                                        components={{
-                                                            p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
-                                                            code: ({ children }) => <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px', fontFamily: 'monospace' }}>{children}</code>,
-                                                            pre: ({ children }) => <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px', overflowX: 'auto', margin: '4px 0' }}>{children}</pre>,
-                                                            a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>{children}</a>
-                                                        }}
-                                                    >
-                                                        {msg.text}
-                                                    </ReactMarkdown>
-                                                    {msg.edited && (
-                                                        <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px', fontStyle: 'italic' }}>
-                                                            (edited)
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )
-                                        )}
-
-                                        {Object.values(msg.reactions).length > 0 && (
-                                            <div style={{
-                                                position: 'absolute',
-                                                bottom: '-18px',
-                                                right: msg.sender === 'me' ? '0' : 'auto',
-                                                left: msg.sender === 'me' ? 'auto' : '0',
-                                                display: 'flex',
-                                                gap: '4px',
-                                                background: 'rgba(0, 0, 0, 0.6)',
-                                                backdropFilter: 'blur(4px)',
-                                                borderRadius: '16px',
-                                                padding: '4px 8px',
-                                                fontSize: '13px',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                                alignItems: 'center',
-                                                border: '1px solid rgba(255,255,255,0.1)'
-                                            }}>
-                                                {Object.values(msg.reactions).map(r => (
-                                                    <span key={r.emoji} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                                        <span style={{ fontSize: '14px' }}>{r.emoji}</span>
-                                                        {r.count > 1 && <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{r.count}</span>}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {hoveredMessageId === msg.id && (
+                            messages
+                                .filter(msg => {
+                                    if (!isSearching || !searchQuery) return true;
+                                    const content = msg.text?.toLowerCase() || '';
+                                    const sender = msg.senderName?.toLowerCase() || '';
+                                    const query = searchQuery.toLowerCase();
+                                    return content.includes(query) || sender.includes(query);
+                                })
+                                .map(msg => (
+                                    <div
+                                        key={msg.id}
+                                        style={{
+                                            alignSelf: msg.sender === 'me' ? 'flex-end' : 'flex-start',
+                                            maxWidth: '80%',
+                                            position: 'relative'
+                                        }}
+                                        onMouseEnter={() => setHoveredMessageId(msg.id)}
+                                        onMouseLeave={() => setHoveredMessageId(null)}
+                                        onDoubleClick={() => {
+                                            setReplyingTo(msg);
+                                            inputRef.current?.focus();
+                                        }}
+                                    >
                                         <div style={{
-                                            position: 'absolute',
-                                            bottom: '-35px',
-                                            left: msg.sender === 'me' ? 'auto' : '0',
-                                            right: msg.sender === 'me' ? '0' : 'auto',
-                                            background: 'rgba(20, 20, 20, 0.9)',
-                                            backdropFilter: 'blur(8px)',
-                                            borderRadius: '24px',
-                                            padding: '4px 8px',
-                                            display: 'flex',
-                                            gap: '6px',
-                                            zIndex: 20,
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                                            border: '1px solid rgba(255,255,255,0.1)'
+                                            background: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? 'transparent' : (msg.sender === 'me' ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+                                            padding: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '0' : (msg.image ? '4px' : '8px 12px'),
+                                            borderRadius: msg.sender === 'me' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                                            fontSize: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '48px' : '13px',
+                                            lineHeight: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '1.2' : '1.5',
+                                            color: 'white',
+                                            wordBreak: 'break-word',
+                                            position: 'relative',
+                                            marginBottom: Object.values(msg.reactions).length > 0 ? '14px' : '0'
                                         }}>
-                                            {['👍', '❤️', '😂', '😮'].map(emoji => (
-                                                <button
-                                                    key={emoji}
-                                                    onClick={() => handleReactionClick(msg.id, emoji)}
-                                                    style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        fontSize: '24px',
-                                                        padding: '4px',
-                                                        transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                        lineHeight: 1
-                                                    }}
-                                                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
-                                                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                                >
-                                                    {emoji}
-                                                </button>
-                                            ))}
-
-                                            {msg.sender === 'me' && (
-                                                <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
-                                            )}
-
-
-                                            {/* Reply button - available for all messages */}
-                                            <button
-                                                onClick={() => {
-                                                    setReplyingTo(msg);
-                                                    inputRef.current?.focus();
-                                                }}
-                                                style={{
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    color: 'rgba(255, 255, 255, 0.8)',
-                                                    padding: '4px',
+                                            {msg.sender !== 'me' && (
+                                                <div style={{
+                                                    fontSize: '10px',
+                                                    fontWeight: 700,
+                                                    marginBottom: '4px',
+                                                    color: msg.senderRole === 'host' ? '#facc15' : 'rgba(255,255,255,0.7)',
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    transition: 'transform 0.2s ease'
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                                title="Reply"
-                                            >
-                                                <Reply size={18} />
-                                            </button>
-                                            {msg.sender === 'me' && (
+                                                    gap: '4px'
+                                                }}>
+                                                    {msg.senderName || 'Anonymous'}
+                                                    {msg.senderRole === 'host' && <Shield size={10} />}
+                                                    <span style={{
+                                                        fontSize: '9px',
+                                                        opacity: 0.5,
+                                                        textTransform: 'uppercase',
+                                                        padding: '1px 4px',
+                                                        background: 'rgba(255,255,255,0.1)',
+                                                        borderRadius: '4px'
+                                                    }}>
+                                                        {msg.senderRole}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {msg.image ? (
+                                                <img
+                                                    src={msg.image}
+                                                    alt="Shared"
+                                                    style={{ maxWidth: '100%', borderRadius: '8px', cursor: 'zoom-in', display: 'block' }}
+                                                    onClick={() => { setSelectedImage({ src: msg.image!, id: msg.id }); setZoom(1); }}
+                                                />
+                                            ) : (
+                                                msg.text && (
+                                                    <div style={{
+                                                        fontSize: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '80px' : '13px',
+                                                        lineHeight: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? '1.1' : '1.5',
+                                                        animation: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? 'floatEmoji 3s ease-in-out infinite, pulseBig 2s ease-in-out infinite' : 'none',
+                                                        filter: (!msg.image && msg.text && isOnlyEmojis(msg.text)) ? 'drop-shadow(0 0 15px rgba(255, 255, 255, 0.3))' : 'none',
+                                                        display: 'flex',
+                                                        flexDirection: 'column'
+                                                    }}>
+                                                        {msg.replyTo && (
+                                                            <div style={{
+                                                                borderLeft: '2px solid rgba(255,255,255,0.3)',
+                                                                paddingLeft: '8px',
+                                                                marginBottom: '6px',
+                                                                fontSize: '11px',
+                                                                opacity: 0.7
+                                                            }}>
+                                                                <div style={{ fontWeight: 'bold' }}>{msg.replyTo.sender === 'me' ? 'You' : 'Opponent'}</div>
+                                                                <div style={{
+                                                                    whiteSpace: 'nowrap',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    maxWidth: '150px'
+                                                                }}>
+                                                                    {msg.replyTo.text}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <ReactMarkdown
+                                                            components={{
+                                                                p: ({ children }) => {
+                                                                    const myUsername = multiplayerService.getMyMetadata().username;
+
+                                                                    // Function to process content for mentions and moves
+                                                                    const processContent = (text: string) => {
+                                                                        const parts: (string | React.ReactNode)[] = [];
+                                                                        let lastIndex = 0;
+
+                                                                        // Combined regex for @username and chess moves (e4, Nf3, O-O, O-O-O, etc.)
+                                                                        const regex = /(@\w+)|([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:\=[NBRQK])?[+#]?)|(O-O(?:-O)?)/g;
+
+                                                                        let match;
+                                                                        while ((match = regex.exec(text)) !== null) {
+                                                                            // Add text before match
+                                                                            if (match.index > lastIndex) {
+                                                                                parts.push(text.substring(lastIndex, match.index));
+                                                                            }
+
+                                                                            const mention = match[1];
+                                                                            const move = match[2] || match[3];
+
+                                                                            if (mention) {
+                                                                                const isMe = mention === `@${myUsername} `;
+                                                                                parts.push(
+                                                                                    <span key={match.index} style={{
+                                                                                        color: isMe ? '#facc15' : '#60a5fa',
+                                                                                        fontWeight: 600,
+                                                                                        background: isMe ? 'rgba(250, 204, 21, 0.1)' : 'transparent',
+                                                                                        padding: isMe ? '0 4px' : '0',
+                                                                                        borderRadius: '4px'
+                                                                                    }}>
+                                                                                        {mention}
+                                                                                    </span>
+                                                                                );
+                                                                            } else if (move) {
+                                                                                parts.push(
+                                                                                    <span
+                                                                                        key={match.index}
+                                                                                        onClick={() => {
+                                                                                            window.dispatchEvent(new CustomEvent('chess-chat-move-highlight', { detail: move }));
+                                                                                        }}
+                                                                                        style={{
+                                                                                            color: '#4ade80',
+                                                                                            cursor: 'pointer',
+                                                                                            fontWeight: 600,
+                                                                                            textDecoration: 'underline',
+                                                                                            textDecorationStyle: 'dotted'
+                                                                                        }}
+                                                                                        title={`Highlight ${move} on board`}
+                                                                                    >
+                                                                                        {move}
+                                                                                    </span>
+                                                                                );
+                                                                            }
+
+                                                                            lastIndex = regex.lastIndex;
+                                                                        }
+
+                                                                        // Add remaining text
+                                                                        if (lastIndex < text.length) {
+                                                                            parts.push(text.substring(lastIndex));
+                                                                        }
+
+                                                                        return parts;
+                                                                    };
+
+                                                                    const renderChildren = (child: any): any => {
+                                                                        if (typeof child === 'string') {
+                                                                            return processContent(child);
+                                                                        }
+                                                                        if (Array.isArray(child)) {
+                                                                            return child.map(renderChildren);
+                                                                        }
+                                                                        return child;
+                                                                    };
+
+                                                                    return <p style={{ margin: 0 }}>{renderChildren(children)}</p>;
+                                                                },
+                                                                code: ({ children }) => <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px', fontFamily: 'monospace' }}>{children}</code>,
+                                                                pre: ({ children }) => <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px', overflowX: 'auto', margin: '4px 0' }}>{children}</pre>,
+                                                                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>{children}</a>
+                                                            }}
+                                                        >
+                                                            {msg.text}
+                                                        </ReactMarkdown>
+                                                        {msg.edited && (
+                                                            <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px', fontStyle: 'italic' }}>
+                                                                (edited)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )
+                                            )}
+
+                                            {Object.values(msg.reactions).length > 0 && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    bottom: '-18px',
+                                                    right: msg.sender === 'me' ? '0' : 'auto',
+                                                    left: msg.sender === 'me' ? 'auto' : '0',
+                                                    display: 'flex',
+                                                    gap: '4px',
+                                                    background: 'rgba(0, 0, 0, 0.6)',
+                                                    backdropFilter: 'blur(4px)',
+                                                    borderRadius: '16px',
+                                                    padding: '4px 8px',
+                                                    fontSize: '13px',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                    alignItems: 'center',
+                                                    border: '1px solid rgba(255,255,255,0.1)'
+                                                }}>
+                                                    {Object.values(msg.reactions).map(r => (
+                                                        <span key={r.emoji} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                            <span style={{ fontSize: '14px' }}>{r.emoji}</span>
+                                                            {r.count > 1 && <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{r.count}</span>}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {hoveredMessageId === msg.id && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: '-35px',
+                                                left: msg.sender === 'me' ? 'auto' : '0',
+                                                right: msg.sender === 'me' ? '0' : 'auto',
+                                                background: 'rgba(20, 20, 20, 0.9)',
+                                                backdropFilter: 'blur(8px)',
+                                                borderRadius: '24px',
+                                                padding: '4px 8px',
+                                                display: 'flex',
+                                                gap: '6px',
+                                                zIndex: 20,
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(255,255,255,0.1)'
+                                            }}>
+                                                {['👍', '❤️', '😂', '😮'].map(emoji => (
+                                                    <button
+                                                        key={emoji}
+                                                        onClick={() => handleReactionClick(msg.id, emoji)}
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            fontSize: '24px',
+                                                            padding: '4px',
+                                                            transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                            lineHeight: 1
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
+                                                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+
+                                                {msg.sender === 'me' && (
+                                                    <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+                                                )}
+
+
+                                                {/* Reply button - available for all messages */}
                                                 <button
                                                     onClick={() => {
-                                                        setEditingMessageId(msg.id);
-                                                        setInputText(msg.text || '');
+                                                        setReplyingTo(msg);
                                                         inputRef.current?.focus();
                                                     }}
                                                     style={{
@@ -942,53 +1071,76 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                                                     }}
                                                     onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
                                                     onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                                    title="Edit"
+                                                    title="Reply"
                                                 >
-                                                    <Edit2 size={18} />
+                                                    <Reply size={18} />
                                                 </button>
-                                            )}
+                                                {msg.sender === 'me' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingMessageId(msg.id);
+                                                            setInputText(msg.text || '');
+                                                            inputRef.current?.focus();
+                                                        }}
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            color: 'rgba(255, 255, 255, 0.8)',
+                                                            padding: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            transition: 'transform 0.2s ease'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 size={18} />
+                                                    </button>
+                                                )}
 
 
+                                                {msg.sender === 'me' && (
+                                                    <button
+                                                        onClick={() => handleDeleteMessage(msg.id)}
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            color: '#ef4444',
+                                                            padding: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            transition: 'transform 0.2s ease'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                                        title="Delete for everyone"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div style={{
+                                            fontSize: '10px',
+                                            opacity: 0.4,
+                                            marginTop: '4px',
+                                            textAlign: msg.sender === 'me' ? 'right' : 'left',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: msg.sender === 'me' ? 'flex-end' : 'flex-start',
+                                            gap: '4px'
+                                        }}>
+                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             {msg.sender === 'me' && (
-                                                <button
-                                                    onClick={() => handleDeleteMessage(msg.id)}
-                                                    style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        color: '#ef4444',
-                                                        padding: '4px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        transition: 'transform 0.2s ease'
-                                                    }}
-                                                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                                    title="Delete for everyone"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
+                                                msg.read ? <CheckCheck size={12} color="#60a5fa" /> : <Check size={12} />
                                             )}
                                         </div>
-                                    )}
-
-                                    <div style={{
-                                        fontSize: '10px',
-                                        opacity: 0.4,
-                                        marginTop: '4px',
-                                        textAlign: msg.sender === 'me' ? 'right' : 'left',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: msg.sender === 'me' ? 'flex-end' : 'flex-start',
-                                        gap: '4px'
-                                    }}>
-                                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        {msg.sender === 'me' && (
-                                            msg.read ? <CheckCheck size={12} color="#60a5fa" /> : <Check size={12} />
-                                        )}
                                     </div>
-                                </div>
-                            ))
+                                ))
                         )}
 
                         {isTyping && (
@@ -1116,19 +1268,23 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                             </div>
                         )}
 
+
                         <form onSubmit={handleSend} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                             <button
                                 type="button"
-                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                onClick={() => {
+                                    setShowEmojiPicker(!showEmojiPicker);
+                                }}
                                 style={{
                                     background: 'none',
                                     border: 'none',
-                                    color: 'rgba(255,255,255,0.6)',
+                                    color: showEmojiPicker ? '#facc15' : 'rgba(255,255,255,0.6)',
                                     cursor: 'pointer',
                                     padding: '4px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    flexShrink: 0
+                                    flexShrink: 0,
+                                    transition: 'color 0.2s'
                                 }}
                             >
                                 <Smile size={18} />
@@ -1331,7 +1487,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                             </div>
                         </div>
                     )}
-                </div >
+                </div>
             )}
         </>
     );
