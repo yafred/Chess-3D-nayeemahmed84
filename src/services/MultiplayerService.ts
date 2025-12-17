@@ -1,7 +1,7 @@
 import Peer, { DataConnection } from 'peerjs';
 
 export interface MultiplayerData {
-    type: 'move' | 'game_start' | 'game_over' | 'chat' | 'interaction' | 'heartbeat' | 'typing' | 'reaction' | 'image' | 'chat_clear' | 'chat_delete' | 'chat_read' | 'chat_edit' | 'game_state_request' | 'game_state_sync' | 'sync_members' | 'evaluation_sync';
+    type: 'move' | 'game_start' | 'game_over' | 'chat' | 'interaction' | 'heartbeat' | 'typing' | 'reaction' | 'image' | 'chat_clear' | 'chat_delete' | 'chat_read' | 'chat_edit' | 'game_state_request' | 'game_state_sync' | 'sync_members' | 'evaluation_sync' | 'call_request' | 'call_accept' | 'call_end';
     payload: any;
 }
 
@@ -15,16 +15,22 @@ class MultiplayerService {
     private peer: Peer | null = null;
     // We now support multiple connections (Host -> [Opponent, Spectator1, Spectator2...])
     private connections: DataConnection[] = [];
+    private activeCall: any | null = null;
+    private localStream: MediaStream | null = null;
 
     private onDataCallbacks: ((data: MultiplayerData, conn: DataConnection) => void)[] = [];
     private onConnectCallbacks: ((conn: DataConnection) => void)[] = [];
     private onDisconnectCallbacks: ((conn: DataConnection) => void)[] = [];
+    private onOpenCallbacks: ((id: string) => void)[] = [];
 
     private heartbeatInterval: number | null = null;
     private heartbeatTimeoutId: number | null = null;
     private lastHeartbeatReceived: Map<string, number> = new Map();
     private memberList: ConnectionMetadata[] = [];
     private myMetadata: ConnectionMetadata = { role: 'player', username: 'Host' };
+
+    private onCallCallbacks: ((stream: MediaStream, peerId: string) => void)[] = [];
+    private onCallEndCallbacks: (() => void)[] = [];
 
     public myId: string = '';
     private onErrorCallbacks: ((error: string) => void)[] = [];
@@ -43,6 +49,8 @@ class MultiplayerService {
         this.peer.on('open', (id) => {
             console.log('[MultiplayerService] ✓ Peer initialized successfully. My ID:', id);
             this.myId = id;
+            this.myMetadata.id = id;
+            this.onOpenCallbacks.forEach(cb => cb(id));
             onId(id);
         });
 
@@ -55,6 +63,17 @@ class MultiplayerService {
             console.error('[MultiplayerService] ✗ PeerJS error:', err);
             console.error('[MultiplayerService] Error type:', err.type);
             this.triggerError(`Connection failed: ${err.type || 'Unknown error'}`);
+        });
+
+        this.peer.on('call', (call) => {
+            console.log('[MultiplayerService] Incoming call from:', call.peer);
+            this.activeCall = call;
+
+            // We need to wait for the user to 'answer' with their stream
+            // But we can store the call and notify the UI
+            window.dispatchEvent(new CustomEvent('chess-incoming-call', {
+                detail: { peerId: call.peer, call }
+            }));
         });
     }
 
@@ -163,7 +182,7 @@ class MultiplayerService {
     }
 
     private updateAndBroadcastMembers() {
-        const members: ConnectionMetadata[] = [this.myMetadata];
+        const members: ConnectionMetadata[] = [{ ...this.myMetadata, id: this.myId }];
         this.connections.forEach(c => {
             if (c.open && c.metadata) {
                 members.push({ ...c.metadata, id: c.peer });
@@ -291,12 +310,90 @@ class MultiplayerService {
         return this.connections.some(c => c.open);
     }
 
+    getMembers(): ConnectionMetadata[] {
+        return this.memberList;
+    }
+
     // Get connection by ID
     getConnection(peerId: string) {
         return this.connections.find(c => c.peer === peerId);
     }
 
+    // --- Media Call Methods ---
+
+    async startCall(peerId: string, stream: MediaStream) {
+        if (!this.peer || !peerId) {
+            console.error('[MultiplayerService] Cannot start call: peerId is missing');
+            return;
+        }
+        console.log('[MultiplayerService] Starting call to:', peerId);
+        this.localStream = stream;
+        const call = this.peer.call(peerId, stream);
+        this.activeCall = call;
+
+        call.on('stream', (remoteStream) => {
+            console.log('[MultiplayerService] Received remote stream');
+            this.onCallCallbacks.forEach(cb => cb(remoteStream, peerId));
+        });
+
+        call.on('close', () => {
+            this.handleCallEnd();
+        });
+
+        call.on('error', (err) => {
+            console.error('[MultiplayerService] Call error:', err);
+            this.handleCallEnd();
+        });
+    }
+
+    answerCall(stream: MediaStream) {
+        if (!this.activeCall) return;
+        this.localStream = stream;
+        this.activeCall.answer(stream);
+
+        this.activeCall.on('stream', (remoteStream: MediaStream) => {
+            console.log('[MultiplayerService] Received remote stream (answered)');
+            this.onCallCallbacks.forEach(cb => cb(remoteStream, this.activeCall.peer));
+        });
+
+        this.activeCall.on('close', () => {
+            this.handleCallEnd();
+        });
+    }
+
+    endCall() {
+        if (this.activeCall) {
+            this.activeCall.close();
+            this.handleCallEnd();
+        }
+        this.broadcast({ type: 'call_end', payload: null });
+    }
+
+    private handleCallEnd() {
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+        this.activeCall = null;
+        this.onCallEndCallbacks.forEach(cb => cb());
+    }
+
+    onCall(callback: (stream: MediaStream, peerId: string) => void) {
+        this.onCallCallbacks.push(callback);
+        return () => {
+            this.onCallCallbacks = this.onCallCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    onCallEnd(callback: () => void) {
+        this.onCallEndCallbacks.push(callback);
+        return () => {
+            this.onCallEndCallbacks = this.onCallEndCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
     disconnect() {
+        this.handleCallEnd();
         this.stopHeartbeat();
         this.connections.forEach(conn => conn.close());
         this.connections = [];
@@ -304,6 +401,14 @@ class MultiplayerService {
             this.peer.destroy();
             this.peer = null;
         }
+    }
+
+    onOpen(callback: (id: string) => void) {
+        this.onOpenCallbacks.push(callback);
+        if (this.myId) callback(this.myId);
+        return () => {
+            this.onOpenCallbacks = this.onOpenCallbacks.filter(cb => cb !== callback);
+        };
     }
 }
 

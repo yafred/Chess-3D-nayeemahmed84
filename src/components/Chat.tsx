@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, X, MessageCircle, Lock, Shield, Smile, Paperclip, Trash2, Loader, Download, ZoomIn, ZoomOut, Reply, Edit2, Check, CheckCheck, Eye, Search } from 'lucide-react';
+import { Send, X, MessageCircle, Lock, Shield, Smile, Paperclip, Trash2, Loader, Download, ZoomIn, ZoomOut, Reply, Edit2, Check, CheckCheck, Eye, Search, Phone, Video, PhoneOff, Mic, MicOff, VideoOff } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { multiplayerService } from '../services/MultiplayerService';
 import messageSoundUrl from '../assets/sounds/message.mp3';
@@ -35,6 +35,7 @@ interface ChatProps {
     onToggle: () => void;
     isOpponentConnected: boolean;
     members?: any[];
+    myId?: string;
 }
 
 const isOnlyEmojis = (text: string) => {
@@ -57,6 +58,22 @@ const chatStyles = `
 @keyframes pulseBig {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.1); opacity: 0.9; }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 `;
 
@@ -84,7 +101,7 @@ const stripMetadata = (file: Blob): Promise<string> => {
     });
 };
 
-const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, members: initialMembers }) => {
+const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, members: initialMembers, myId }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [members, setMembers] = useState<any[]>(initialMembers || []);
     const [inputText, setInputText] = useState('');
@@ -99,6 +116,16 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+
+    // Call state
+    const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'incoming' | 'active'>('idle');
+    const [isMicMuted, setIsMicMuted] = useState(false);
+    const [isVideoOff, setIsVideoOff] = useState(false);
+    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const [incomingCallData, setIncomingCallData] = useState<any>(null);
     const [selectedImage, setSelectedImage] = useState<{ src: string, id: string } | null>(null);
     const [zoom, setZoom] = useState(1);
     const [isPanning, setIsPanning] = useState(false);
@@ -300,6 +327,28 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
         window.addEventListener('chess-chat-read' as any, handleReadEvent as any);
         window.addEventListener('chess-chat-edit' as any, handleEditEvent as any);
 
+        // Call event listeners
+        const handleIncomingCall = (e: any) => {
+            setIncomingCallData(e.detail);
+            setCallStatus('incoming');
+        };
+
+        const onCall = (stream: MediaStream) => {
+            setRemoteStream(stream);
+            setCallStatus('active');
+        };
+
+        const onCallEnd = () => {
+            setCallStatus('idle');
+            setRemoteStream(null);
+            setLocalStream(null);
+            setIncomingCallData(null);
+        };
+
+        window.addEventListener('chess-incoming-call' as any, handleIncomingCall);
+        const unbindCall = multiplayerService.onCall(onCall);
+        const unbindCallEnd = multiplayerService.onCallEnd(onCallEnd);
+
         return () => {
             window.removeEventListener('chess-chat-message' as any, handleChatEvent as any);
             window.removeEventListener('chess-chat-image' as any, handleImageEvent as any);
@@ -309,8 +358,24 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
             window.removeEventListener('chess-chat-delete' as any, handleDeleteMessageEvent as any);
             window.removeEventListener('chess-chat-read' as any, handleReadEvent as any);
             window.removeEventListener('chess-chat-edit' as any, handleEditEvent as any);
+            window.removeEventListener('chess-incoming-call' as any, handleIncomingCall);
+            unbindCall();
+            unbindCallEnd();
         };
     }, [isOpen]);
+
+    // Effect to attach streams to video elements
+    useEffect(() => {
+        if (localVideoRef.current && localStream) {
+            localVideoRef.current.srcObject = localStream;
+        }
+    }, [localStream, callStatus]);
+
+    useEffect(() => {
+        if (remoteVideoRef.current && remoteStream) {
+            remoteVideoRef.current.srcObject = remoteStream;
+        }
+    }, [remoteStream, callStatus]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInputText(e.target.value);
@@ -574,6 +639,79 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
         setIsPanning(false);
     };
 
+    // --- Call Actions ---
+    const startCall = async (video: boolean) => {
+        const opponent = members.find(m => m.role === 'player' && m.id !== myId);
+
+        if (!isOpponentConnected) {
+            alert('Cannot start call: Opponent is not connected.');
+            return;
+        }
+        if (!opponent || !opponent.id) {
+            console.log('[Chat] Opponent search debug:', { members, myId: multiplayerService.myId });
+            alert('Cannot start call: Your opponent could not be identified.');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: video,
+                audio: true
+            });
+            setLocalStream(stream);
+            setCallStatus('calling');
+            setIsVideoOff(!video);
+            multiplayerService.startCall(opponent.id, stream);
+        } catch (err) {
+            console.error('Failed to get media stream:', err);
+            alert('Could not access camera or microphone. Please check permissions.');
+        }
+    };
+
+    const answerCall = async () => {
+        if (!incomingCallData) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true, // Answer with both by default, user can toggle
+                audio: true
+            });
+            setLocalStream(stream);
+            multiplayerService.answerCall(stream);
+            setCallStatus('active');
+        } catch (err) {
+            console.error('Failed to answer call:', err);
+            multiplayerService.endCall();
+        }
+    };
+
+    const endCall = () => {
+        multiplayerService.endCall();
+        setCallStatus('idle');
+        setLocalStream(null);
+        setRemoteStream(null);
+        setIncomingCallData(null);
+    };
+
+    const toggleMic = () => {
+        if (localStream) {
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                setIsMicMuted(!audioTrack.enabled);
+            }
+        }
+    };
+
+    const toggleVideo = () => {
+        if (localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                setIsVideoOff(!videoTrack.enabled);
+            }
+        }
+    };
+
     return (
         <>
             <style>
@@ -653,6 +791,91 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                     }}
                 >
                     <style>{chatStyles}</style>
+
+                    {/* Call Overlay / Active Call UI */}
+                    {callStatus !== 'idle' && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'rgba(0,0,0,0.9)',
+                            zIndex: 400,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '20px',
+                            animation: 'fadeIn 0.3s ease'
+                        }}>
+                            {callStatus === 'incoming' && (
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyItems: 'center', margin: '0 auto 15px' }}>
+                                            <Phone size={40} color="#4ade80" style={{ margin: 'auto' }} />
+                                        </div>
+                                        <h3 style={{ color: 'white', margin: 0 }}>Incoming Call</h3>
+                                        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Opponent is calling you...</p>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '15px' }}>
+                                        <button onClick={answerCall} style={{ background: '#4ade80', color: 'black', border: 'none', borderRadius: '50%', width: '50px', height: '50px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Phone size={24} />
+                                        </button>
+                                        <button onClick={endCall} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '50px', height: '50px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <PhoneOff size={24} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {callStatus === 'calling' && (
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyItems: 'center', margin: '0 auto 15px', animation: 'pulse 2s infinite' }}>
+                                        <Phone size={40} color="#3b82f6" style={{ margin: 'auto' }} />
+                                    </div>
+                                    <h3 style={{ color: 'white' }}>Calling...</h3>
+                                    <button onClick={endCall} style={{ marginTop: '20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '50px', height: '50px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <PhoneOff size={24} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {callStatus === 'active' && (
+                                <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                                    {/* Remote Video (Main) */}
+                                    <div style={{ flex: 1, background: '#000', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+                                        <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', color: 'white' }}>Opponent</div>
+                                    </div>
+
+                                    {/* Local Video (Preview) */}
+                                    <div style={{ position: 'absolute', top: '10px', right: '10px', width: '80px', height: '110px', background: '#222', borderRadius: '8px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                        <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                                        {isVideoOff && (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <VideoOff size={20} color="rgba(255,255,255,0.4)" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Call Controls */}
+                                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', padding: '15px 0' }}>
+                                        <button onClick={toggleMic} style={{ background: isMicMuted ? '#ef4444' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                                        </button>
+                                        <button onClick={toggleVideo} style={{ background: isVideoOff ? '#ef4444' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
+                                        </button>
+                                        <button onClick={endCall} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <PhoneOff size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {isDragging && (
                         <div style={{
                             position: 'absolute',
@@ -700,6 +923,46 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, memb
                             </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {isOpponentConnected && members.some(m => m.role === 'player' && m.id !== myId) && callStatus === 'idle' && (
+                                <>
+                                    <button
+                                        onClick={() => startCall(false)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'rgba(255,255,255,0.5)',
+                                            cursor: 'pointer',
+                                            padding: '4px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            transition: 'color 0.2s'
+                                        }}
+                                        onMouseOver={e => e.currentTarget.style.color = '#4ade80'}
+                                        onMouseOut={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+                                        title="Start Voice Call"
+                                    >
+                                        <Phone size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => startCall(true)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'rgba(255,255,255,0.5)',
+                                            cursor: 'pointer',
+                                            padding: '4px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            transition: 'color 0.2s'
+                                        }}
+                                        onMouseOver={e => e.currentTarget.style.color = '#3b82f6'}
+                                        onMouseOut={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+                                        title="Start Video Call"
+                                    >
+                                        <Video size={16} />
+                                    </button>
+                                </>
+                            )}
                             <button
                                 onClick={() => {
                                     setIsSearching(!isSearching);

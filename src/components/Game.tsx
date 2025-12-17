@@ -47,7 +47,7 @@ const Game = () => {
         volume, setVolume, isMuted, toggleMute,
         saveGame, loadGame, deleteSave, hasSavedGame, game, navigateToMove, importPGN,
         gameMode, setGameMode, capturedPieces, materialAdvantage, initialTime, setInitialTime,
-        opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator, members
+        opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator, members, myId
     } = useChessGame();
 
     const [isPanelVisible, setIsPanelVisible] = useState(true);
@@ -1464,6 +1464,7 @@ const Game = () => {
                         onToggle={() => setIsChatOpen(!isChatOpen)}
                         isOpponentConnected={isOpponentConnected}
                         members={members}
+                        myId={myId}
                     />
                 )
             }

@@ -88,6 +88,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
     const [isOpponentConnected, setIsOpponentConnected] = useState(false);
     const [isSpectator, setIsSpectator] = useState(false);
     const [members, setMembers] = useState<any[]>([]);
+    const [myId, setMyId] = useState(multiplayerService.myId);
 
     const [capturedPieces, setCapturedPieces] = useState<{ white: string[], black: string[] }>({ white: [], black: [] });
     const [materialAdvantage, setMaterialAdvantage] = useState(0);
@@ -488,15 +489,22 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             setMembers(e.detail);
         };
 
+        const onId = (id: string) => {
+            setMyId(id);
+        };
+        const cleanupId = multiplayerService.onOpen(onId);
+
         window.addEventListener('chess-members-update', handleMembersUpdate);
 
         // Initialize connection state
         setIsOpponentConnected(multiplayerService.isConnected());
+        setMembers(multiplayerService.getMembers());
 
         return () => {
             cleanupData();
             cleanupConnect();
             cleanupDisconnect();
+            cleanupId();
             window.removeEventListener('chess-members-update', handleMembersUpdate);
         };
     }, [makeMove, game, whiteTime, blackTime, capturedPieces, materialAdvantage, isGameOver, winner]);
@@ -1131,6 +1139,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
         isSpectator,
         setIsSpectator,
         handleSquareSelect,
-        members
+        members,
+        myId
     };
 };
