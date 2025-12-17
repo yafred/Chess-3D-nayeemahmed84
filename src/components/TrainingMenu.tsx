@@ -8,12 +8,13 @@ import {
     Brain,
     Trophy,
     ChevronRight,
-    Zap
+    Zap,
+    GraduationCap
 } from 'lucide-react';
 import { loadTrainingStats, getTrainingSummary } from '../data/trainingStats';
 import { puzzles } from '../data/puzzleData';
 
-export type TrainingMode = 'menu' | 'puzzles' | 'openings' | 'endgames' | 'trainer';
+export type TrainingMode = 'menu' | 'puzzles' | 'openings' | 'endgames' | 'trainer' | 'tutorial';
 
 interface TrainingMenuProps {
     onSelectMode: (mode: TrainingMode) => void;
@@ -254,6 +255,15 @@ export function TrainingMenu({ onSelectMode, onExit }: TrainingMenuProps) {
                     gap: '16px'
                 }}>
                     <TrainingCard
+                        title="Interactive Tutorial"
+                        description="Learn the basics of chess and master special moves with step-by-step guidance."
+                        icon={<GraduationCap size={28} style={{ color: '#60a5fa' }} />}
+                        color="#60a5fa"
+                        stats="Learn basics & rules"
+                        onClick={() => onSelectMode('tutorial')}
+                    />
+
+                    <TrainingCard
                         title="Chess Puzzles"
                         description="Solve tactical puzzles to improve pattern recognition and calculation skills."
                         icon={<Target size={28} style={{ color: '#4ade80' }} />}
@@ -266,8 +276,8 @@ export function TrainingMenu({ onSelectMode, onExit }: TrainingMenuProps) {
                     <TrainingCard
                         title="Opening Explorer"
                         description="Learn popular openings with interactive move-by-move guidance."
-                        icon={<BookOpen size={28} style={{ color: '#60a5fa' }} />}
-                        color="#60a5fa"
+                        icon={<BookOpen size={28} style={{ color: '#a78bfa' }} />}
+                        color="#a78bfa"
                         stats={`${summary.openingsPracticed} practiced`}
                         onClick={() => onSelectMode('openings')}
                         available={false}

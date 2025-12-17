@@ -9,6 +9,7 @@ import { CapturedPieces } from './CapturedPieces';
 import { MultiplayerMenu } from './MultiplayerMenu';
 import { TrainingMenu, TrainingMode } from './TrainingMenu';
 import { PuzzleMode } from './PuzzleMode';
+import TutorialMode from './TutorialMode';
 import { RotateCcw, RotateCw, Trophy, ChevronLeft, ChevronRight, Volume2, VolumeX, Maximize, Minimize, Save, Upload, Check, AlertTriangle, X, Download, Users, GraduationCap } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import Chat from './Chat';
@@ -239,6 +240,11 @@ const Game = () => {
     if (showTraining) {
         if (trainingMode === 'puzzles') {
             return <PuzzleMode onExit={() => {
+                setTrainingMode('menu');
+            }} />;
+        }
+        if (trainingMode === 'tutorial') {
+            return <TutorialMode onExit={() => {
                 setTrainingMode('menu');
             }} />;
         }
