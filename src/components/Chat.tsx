@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, X, MessageCircle, Lock, Shield, Smile, Paperclip, Trash2, Loader, Download, ZoomIn, ZoomOut, Reply, Edit2, Check, CheckCheck } from 'lucide-react';
+import { Send, X, MessageCircle, Lock, Shield, Smile, Paperclip, Trash2, Loader, Download, ZoomIn, ZoomOut, Reply, Edit2, Check, CheckCheck, Eye } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { multiplayerService } from '../services/MultiplayerService';
 import messageSoundUrl from '../assets/sounds/message.mp3';
@@ -14,7 +14,9 @@ interface Reaction {
 
 interface Message {
     id: string;
-    sender: 'me' | 'opponent';
+    sender: 'me' | 'opponent' | 'spectator';
+    senderName?: string;
+    senderRole?: 'host' | 'player' | 'spectator';
     text?: string;
     image?: string;
     timestamp: number;
@@ -32,6 +34,7 @@ interface ChatProps {
     isOpen: boolean;
     onToggle: () => void;
     isOpponentConnected: boolean;
+    members?: any[];
 }
 
 const isOnlyEmojis = (text: string) => {
@@ -65,8 +68,9 @@ const stripMetadata = (file: Blob): Promise<string> => {
     });
 };
 
-const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) => {
+const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected, members: initialMembers }) => {
     const [messages, setMessages] = useState<Message[]>([]);
+    const [members, setMembers] = useState<any[]>(initialMembers || []);
     const [inputText, setInputText] = useState('');
     const [unreadCount, setUnreadCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -123,6 +127,14 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) =>
     }, [isOpen]);
 
     useEffect(() => {
+        const handleMembersUpdate = (e: any) => {
+            setMembers(e.detail);
+        };
+        window.addEventListener('chess-members-update', handleMembersUpdate);
+        return () => window.removeEventListener('chess-members-update', handleMembersUpdate);
+    }, []);
+
+    useEffect(() => {
         if (isOpen && messages.length > 0) {
             const unreadMessages = messages
                 .filter(m => m.sender === 'opponent' && !m.read)
@@ -156,10 +168,12 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) =>
     };
 
     useEffect(() => {
-        const handleChatEvent = (e: CustomEvent<{ text: string, id: string, timestamp: number, replyTo?: any, edited?: boolean }>) => {
+        const handleChatEvent = (e: CustomEvent<{ text: string, id: string, timestamp: number, senderName?: string, senderRole?: any, replyTo?: any, edited?: boolean }>) => {
             const newMessage: Message = {
                 id: e.detail.id,
-                sender: 'opponent',
+                sender: 'opponent', // Fallback
+                senderName: e.detail.senderName,
+                senderRole: e.detail.senderRole,
                 text: e.detail.text,
                 timestamp: e.detail.timestamp,
                 reactions: {},
@@ -322,9 +336,12 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) =>
 
         const messageId = Date.now().toString();
         const timestamp = Date.now();
+        const myMeta = multiplayerService.getMyMetadata();
         const newMessage: Message = {
             id: messageId,
             sender: 'me',
+            senderName: myMeta.username,
+            senderRole: myMeta.role as any,
             text: inputText.trim(),
             timestamp: timestamp,
             reactions: {},
@@ -342,6 +359,8 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) =>
                 text: inputText.trim(),
                 id: messageId,
                 timestamp: timestamp,
+                senderName: myMeta.username,
+                senderRole: myMeta.role,
                 replyTo: replyingTo ? {
                     id: replyingTo.id,
                     text: replyingTo.text || '[Image]',
@@ -654,8 +673,11 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) =>
                         background: 'rgba(255, 255, 255, 0.02)'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Shield size={16} color="#4ade80" />
-                            <span style={{ fontWeight: 600, fontSize: '14px', color: 'white' }}>Encrypted Chat</span>
+                            <span style={{ fontWeight: 600, fontSize: '14px', color: 'white' }}>#{members.length} Online</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.6 }}>
+                                <Eye size={12} />
+                                <span style={{ fontSize: '11px' }}>{members.filter(m => m.role === 'spectator').length}</span>
+                            </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button
@@ -739,6 +761,30 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onToggle, isOpponentConnected }) =>
                                         position: 'relative',
                                         marginBottom: Object.values(msg.reactions).length > 0 ? '14px' : '0'
                                     }}>
+                                        {msg.sender !== 'me' && (
+                                            <div style={{
+                                                fontSize: '10px',
+                                                fontWeight: 700,
+                                                marginBottom: '4px',
+                                                color: msg.senderRole === 'host' ? '#facc15' : 'rgba(255,255,255,0.7)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}>
+                                                {msg.senderName || 'Anonymous'}
+                                                {msg.senderRole === 'host' && <Shield size={10} />}
+                                                <span style={{
+                                                    fontSize: '9px',
+                                                    opacity: 0.5,
+                                                    textTransform: 'uppercase',
+                                                    padding: '1px 4px',
+                                                    background: 'rgba(255,255,255,0.1)',
+                                                    borderRadius: '4px'
+                                                }}>
+                                                    {msg.senderRole}
+                                                </span>
+                                            </div>
+                                        )}
                                         {msg.image ? (
                                             <img
                                                 src={msg.image}

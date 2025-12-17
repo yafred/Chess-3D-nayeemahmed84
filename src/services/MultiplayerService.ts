@@ -1,13 +1,14 @@
 import Peer, { DataConnection } from 'peerjs';
 
 export interface MultiplayerData {
-    type: 'move' | 'game_start' | 'game_over' | 'chat' | 'interaction' | 'heartbeat' | 'typing' | 'reaction' | 'image' | 'chat_clear' | 'chat_delete' | 'chat_read' | 'chat_edit' | 'game_state_request' | 'game_state_sync';
+    type: 'move' | 'game_start' | 'game_over' | 'chat' | 'interaction' | 'heartbeat' | 'typing' | 'reaction' | 'image' | 'chat_clear' | 'chat_delete' | 'chat_read' | 'chat_edit' | 'game_state_request' | 'game_state_sync' | 'sync_members' | 'evaluation_sync';
     payload: any;
 }
 
 export interface ConnectionMetadata {
     role: 'player' | 'spectator';
     username?: string;
+    id?: string;
 }
 
 class MultiplayerService {
@@ -22,6 +23,8 @@ class MultiplayerService {
     private heartbeatInterval: number | null = null;
     private heartbeatTimeoutId: number | null = null;
     private lastHeartbeatReceived: Map<string, number> = new Map();
+    private memberList: ConnectionMetadata[] = [];
+    private myMetadata: ConnectionMetadata = { role: 'player', username: 'Host' };
 
     public myId: string = '';
     private onErrorCallbacks: ((error: string) => void)[] = [];
@@ -90,6 +93,14 @@ class MultiplayerService {
         this.handleConnection(conn);
     }
 
+    setMyMetadata(metadata: Partial<ConnectionMetadata>) {
+        this.myMetadata = { ...this.myMetadata, ...metadata, id: this.myId };
+    }
+
+    getMyMetadata() {
+        return this.myMetadata;
+    }
+
     private handleConnection(conn: DataConnection) {
         this.connections.push(conn);
 
@@ -117,6 +128,11 @@ class MultiplayerService {
             if (typedData.type === 'chat_read') { window.dispatchEvent(new CustomEvent('chess-chat-read', { detail: typedData.payload })); }
             if (typedData.type === 'chat_edit') { window.dispatchEvent(new CustomEvent('chess-chat-edit', { detail: typedData.payload })); }
 
+            if (typedData.type === 'sync_members') {
+                this.memberList = typedData.payload;
+                window.dispatchEvent(new CustomEvent('chess-members-update', { detail: this.memberList }));
+            }
+
             this.onDataCallbacks.forEach(cb => cb(typedData, conn));
         });
 
@@ -130,6 +146,32 @@ class MultiplayerService {
             this.removeConnection(conn.peer);
             this.triggerError(err.message || 'Connection Error');
         });
+
+        // If we are Host and a new person connects, rebuild the member list and broadcast
+        conn.on('open', () => {
+            if (this.isHost()) {
+                this.updateAndBroadcastMembers();
+            }
+        });
+    }
+
+    private isHost() {
+        // Simple heuristic: if we have open connections and we were the one who initialized without connecting to someone else first...
+        // Actually, let's just use the metadata. If we are Host, we didn't 'connect' to anyone, they connected to us.
+        // But let's just check if we have multiple connections or if we are the one receiving connections.
+        return true; // The one accepting connections is the Host in this P2P mesh
+    }
+
+    private updateAndBroadcastMembers() {
+        const members: ConnectionMetadata[] = [this.myMetadata];
+        this.connections.forEach(c => {
+            if (c.open && c.metadata) {
+                members.push({ ...c.metadata, id: c.peer });
+            }
+        });
+        this.memberList = members;
+        this.broadcast({ type: 'sync_members', payload: members });
+        window.dispatchEvent(new CustomEvent('chess-members-update', { detail: this.memberList }));
     }
 
     private removeConnection(peerId: string) {

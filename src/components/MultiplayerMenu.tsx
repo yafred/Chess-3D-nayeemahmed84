@@ -14,6 +14,7 @@ export const MultiplayerMenu: React.FC<MultiplayerMenuProps> = ({ onGameStart, o
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [joinMode, setJoinMode] = useState<'player' | 'spectator'>('player');
+    const [username, setUsername] = useState('');
 
     useEffect(() => {
         multiplayerService.initialize((id) => {
@@ -21,7 +22,7 @@ export const MultiplayerMenu: React.FC<MultiplayerMenuProps> = ({ onGameStart, o
         });
 
         // Listen for incoming connections (Host logic)
-        const cleanupConnect = multiplayerService.onConnect((conn) => {
+        const cleanupConnect = multiplayerService.onConnect((_conn) => {
             // Only auto-start if we are NOT the one joining (i.e., we are the host)
             // And if the connected peer is a player (not a spectator, unless we want to start for spectators too?)
             // Actually, for host, we just want to know someone connected.
@@ -29,7 +30,12 @@ export const MultiplayerMenu: React.FC<MultiplayerMenuProps> = ({ onGameStart, o
             if (status === 'idle') {
                 setStatus('connected');
                 setTimeout(() => {
-                    // If we are host, we are always a player
+                    // Update host metadata if they didn't set one?
+                    if (!username.trim()) {
+                        multiplayerService.setMyMetadata({ role: 'player', username: 'Host' });
+                    } else {
+                        multiplayerService.setMyMetadata({ role: 'player', username: username.trim() });
+                    }
                     onGameStart(true, 'player');
                 }, 1000);
             }
@@ -62,7 +68,10 @@ export const MultiplayerMenu: React.FC<MultiplayerMenuProps> = ({ onGameStart, o
         setJoinMode(role);
         setError(null);
 
-        multiplayerService.connect(peerIdInput, { role });
+        const nameToUse = username.trim() || `User_${Math.floor(Math.random() * 1000)}`;
+        multiplayerService.setMyMetadata({ role, username: nameToUse });
+
+        multiplayerService.connect(peerIdInput, { role, username: nameToUse });
 
         // Add timeout - if not connected in 10 seconds, show error
         setTimeout(() => {
@@ -106,6 +115,29 @@ export const MultiplayerMenu: React.FC<MultiplayerMenuProps> = ({ onGameStart, o
                         Online Multiplayer
                     </h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '20px' }}>×</button>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Your Nickname
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="Enter your name..."
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        style={{
+                            width: '100%',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            color: 'white',
+                            fontSize: '16px',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                        }}
+                    />
                 </div>
 
                 {status === 'connected' ? (

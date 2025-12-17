@@ -87,6 +87,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
     const [opponentSelection, setOpponentSelection] = useState<Square | null>(null);
     const [isOpponentConnected, setIsOpponentConnected] = useState(false);
     const [isSpectator, setIsSpectator] = useState(false);
+    const [members, setMembers] = useState<any[]>([]);
 
     const [capturedPieces, setCapturedPieces] = useState<{ white: string[], black: string[] }>({ white: [], black: [] });
     const [materialAdvantage, setMaterialAdvantage] = useState(0);
@@ -420,7 +421,8 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
                         capturedPieces,
                         materialAdvantage,
                         isGameOver,
-                        winner
+                        winner,
+                        evaluation: evaluation
                     }
                 }, conn.peer);
             } else if (data.type === 'game_state_sync') {
@@ -439,8 +441,10 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
                 setMaterialAdvantage(mat);
                 setIsGameOver(over);
                 setWinner(win);
-                setEvaluation(evaluateBoard(newGame));
+                setEvaluation(data.payload.evaluation || evaluateBoard(newGame));
                 syncPiecesWithBoard(newGame.board());
+            } else if (data.type === 'evaluation_sync') {
+                setEvaluation(data.payload);
             }
         });
 
@@ -480,6 +484,12 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             }
         });
 
+        const handleMembersUpdate = (e: any) => {
+            setMembers(e.detail);
+        };
+
+        window.addEventListener('chess-members-update', handleMembersUpdate);
+
         // Initialize connection state
         setIsOpponentConnected(multiplayerService.isConnected());
 
@@ -487,6 +497,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             cleanupData();
             cleanupConnect();
             cleanupDisconnect();
+            window.removeEventListener('chess-members-update', handleMembersUpdate);
         };
     }, [makeMove, game, whiteTime, blackTime, capturedPieces, materialAdvantage, isGameOver, winner]);
 
@@ -546,6 +557,11 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
                 }
 
                 setEvaluation(evalScore);
+
+                // Broadcast evaluation to spectators if we are the one running the engine
+                if (gameMode === 'online' && !isSpectator) {
+                    multiplayerService.sendData({ type: 'evaluation_sync', payload: evalScore });
+                }
             } else if (data.type === 'mate') {
                 // Mate in X
                 // If positive, side to move wins.
@@ -1114,6 +1130,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
         isOpponentConnected,
         isSpectator,
         setIsSpectator,
-        handleSquareSelect
+        handleSquareSelect,
+        members
     };
 };

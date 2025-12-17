@@ -47,7 +47,7 @@ const Game = () => {
         volume, setVolume, isMuted, toggleMute,
         saveGame, loadGame, deleteSave, hasSavedGame, game, navigateToMove, importPGN,
         gameMode, setGameMode, capturedPieces, materialAdvantage, initialTime, setInitialTime,
-        opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator
+        opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator, members
     } = useChessGame();
 
     const [isPanelVisible, setIsPanelVisible] = useState(true);
@@ -324,6 +324,8 @@ const Game = () => {
                     background: 'rgba(255,0,0,0.5)',
                     zIndex: 10
                 }} />
+                <div style={{ position: 'absolute', top: '5px', width: '100%', textAlign: 'center', fontSize: '10px', color: '#000', fontWeight: 'bold', zIndex: 11, pointerEvents: 'none' }}>W</div>
+                <div style={{ position: 'absolute', bottom: '5px', width: '100%', textAlign: 'center', fontSize: '10px', color: '#fff', fontWeight: 'bold', zIndex: 11, pointerEvents: 'none' }}>B</div>
             </div>
 
             {/* Floating Show Panel Button (when hidden) */}
@@ -1430,6 +1432,7 @@ const Game = () => {
                         isOpen={isChatOpen}
                         onToggle={() => setIsChatOpen(!isChatOpen)}
                         isOpponentConnected={isOpponentConnected}
+                        members={members}
                     />
                 )
             }
