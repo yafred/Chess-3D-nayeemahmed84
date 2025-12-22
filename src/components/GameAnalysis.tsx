@@ -53,21 +53,31 @@ export const GameAnalysis = ({ pgn, winner, onClose, onNavigateToMove }: GameAna
 
             // Get evaluation for this position
             const evaluation = await new Promise<number>((resolve) => {
-                const timeout = setTimeout(() => resolve(previousEval), 2000);
+                const timeout = setTimeout(() => resolve(previousEval), 3000);
 
                 worker.onmessage = (e) => {
-                    if (e.data.type === 'move') {
+                    const { type, data } = e.data;
+                    if (type === 'evaluation') {
                         clearTimeout(timeout);
-                        // Simple heuristic: convert moves to rough eval
-                        resolve(previousEval + (Math.random() * 20 - 10));
+                        let evalScore = data.value;
+                        if (data.type === 'cp') {
+                            evalScore = data.value;
+                        } else if (data.type === 'mate') {
+                            evalScore = data.value > 0 ? 10000 : -10000; // Large value for mate
+                        }
+
+                        // Flip if Black's turn in that position
+                        if (replayGame.turn() === 'b') {
+                            evalScore = -evalScore;
+                        }
+                        resolve(evalScore);
                     }
                 };
 
-                worker.postMessage({
-                    fen: replayGame.fen(),
-                    difficulty: 'Hard',
-                    type: 'move'
-                });
+                worker.postMessage({ type: 'init' }); // Ensure worker is ready
+                const historyStr = replayGame.history({ verbose: true }).map(m => m.from + m.to + (m.promotion || '')).join(' ');
+                worker.postMessage({ type: 'position', data: `startpos moves ${historyStr}` });
+                worker.postMessage({ type: 'go', data: 'depth 10' }); // Fast depth for analysis
             });
 
             const evalDrop = Math.abs(evaluation - previousEval);
@@ -91,11 +101,11 @@ export const GameAnalysis = ({ pgn, winner, onClose, onNavigateToMove }: GameAna
     };
 
     const classifyMove = (evalDrop: number, moveIndex: number): MoveAnalysis['classification'] => {
-        if (moveIndex < 10) return 'book';
+        if (moveIndex < 6) return 'book';
         if (evalDrop < 10) return 'brilliant';
-        if (evalDrop < 25) return 'good';
-        if (evalDrop < 50) return 'inaccuracy';
-        if (evalDrop < 100) return 'mistake';
+        if (evalDrop < 30) return 'good';
+        if (evalDrop < 80) return 'inaccuracy';
+        if (evalDrop < 150) return 'mistake';
         return 'blunder';
     };
 

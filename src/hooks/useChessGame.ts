@@ -23,6 +23,8 @@ export interface PlayerStats {
     losses: number;
     draws: number;
     totalGames: number;
+    avgAccuracy: number;
+    openingWinRates: Record<string, { wins: number, games: number }>;
 }
 
 import { multiplayerService } from '../services/MultiplayerService';
@@ -45,6 +47,7 @@ interface SavedGame {
     gameMode: GameMode;
     pieceTheme: PieceTheme;
     environment: EnvironmentPreset;
+    blindfoldMode: boolean;
     initialTime?: number;
 }
 
@@ -117,7 +120,15 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
     const [gameMode, setGameMode] = useState<GameMode>(gameModeProp);
     const [pieceTheme, setPieceTheme] = useState<PieceTheme>('glass');
     const [environment, setEnvironment] = useState<EnvironmentPreset>('forest');
-    const [stats, setStats] = useState<PlayerStats>({ wins: 0, losses: 0, draws: 0, totalGames: 0 });
+    const [stats, setStats] = useState<PlayerStats>({
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        totalGames: 0,
+        avgAccuracy: 0,
+        openingWinRates: {}
+    });
+    const [blindfoldMode, setBlindfoldMode] = useState(false);
 
     // Play as Black state
     const [playerColor, setPlayerColor] = useState<'w' | 'b'>('w');
@@ -405,12 +416,23 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
 
                     // Update stats
                     setStats(prev => {
-                        const newStats = {
+                        const openingName = opening?.name || 'Unknown Opening';
+                        const currentOpeningStats = prev.openingWinRates[openingName] || { wins: 0, games: 0 };
+
+                        const newStats: PlayerStats = {
                             ...prev,
                             wins: result === 'win' ? prev.wins + 1 : prev.wins,
                             losses: result === 'loss' ? prev.losses + 1 : prev.losses,
                             draws: result === 'draw' ? prev.draws + 1 : prev.draws,
-                            totalGames: prev.totalGames + 1
+                            totalGames: prev.totalGames + 1,
+                            avgAccuracy: prev.avgAccuracy, // Updated during analysis if needed
+                            openingWinRates: {
+                                ...prev.openingWinRates,
+                                [openingName]: {
+                                    wins: result === 'win' ? currentOpeningStats.wins + 1 : currentOpeningStats.wins,
+                                    games: currentOpeningStats.games + 1
+                                }
+                            }
                         };
                         localStorage.setItem('chess_player_stats', JSON.stringify(newStats));
                         return newStats;
@@ -961,6 +983,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             gameMode,
             pieceTheme,
             environment,
+            blindfoldMode,
             initialTime
         };
 
@@ -1010,7 +1033,8 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             setIsMuted(state.isMuted);
             setGameMode(state.gameMode || 'ai');
             setPieceTheme(state.pieceTheme || 'glass');
-            setEnvironment(state.environment || 'forest'); // Corrected and added environment loading
+            setEnvironment(state.environment || 'forest');
+            setBlindfoldMode(state.blindfoldMode || false);
             if (state.initialTime) setInitialTime(state.initialTime);
 
             // Restore Pieces Visuals
@@ -1185,6 +1209,8 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
         setPieceTheme,
         environment,
         setEnvironment,
-        stats
+        stats,
+        blindfoldMode,
+        setBlindfoldMode
     };
 };

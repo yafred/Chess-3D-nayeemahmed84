@@ -49,12 +49,38 @@ const Game = () => {
         gameMode, setGameMode, capturedPieces, materialAdvantage, initialTime, setInitialTime,
         opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator, members, myId,
         pieceTheme, setPieceTheme, environment, setEnvironment,
-        stats
+        stats, blindfoldMode, setBlindfoldMode
     } = useChessGame();
 
     const [isPanelVisible, setIsPanelVisible] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showAnalysis, setShowAnalysis] = useState(false);
+    const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+
+    // Voice Commentary Logic
+    useEffect(() => {
+        if (!isVoiceEnabled || isMuted || history.length === 0) return;
+
+        const lastMove = history[history.length - 1];
+        if (!lastMove) return;
+
+        const utterance = new SpeechSynthesisUtterance(lastMove);
+        utterance.volume = volume;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        // Add some "flair" for special moves
+        if (lastMove.includes('#')) {
+            utterance.text = `Checkmate! ${turn === 'w' ? 'Black' : 'White'} wins.`;
+        } else if (lastMove.includes('+')) {
+            utterance.text = `${lastMove.replace('+', '')}, check!`;
+        } else if (lastMove.includes('x')) {
+            utterance.text = `${lastMove.replace('x', ' takes ')}`;
+        }
+
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+    }, [history.length, isVoiceEnabled, isMuted, volume]);
     const [saveLoadMode, setSaveLoadMode] = useState<'save' | 'load' | null>(null);
     const [pgnMode, setPGNMode] = useState<'export' | 'import' | null>(null);
     const [showMultiplayerMenu, setShowMultiplayerMenu] = useState(false);
@@ -335,6 +361,7 @@ const Game = () => {
                         chatHighlightSquares={chatHighlightSquares}
                         pieceTheme={pieceTheme}
                         environmentPreset={environment}
+                        blindfoldMode={blindfoldMode}
                     />
                 </React.Suspense>
             </Canvas>
@@ -821,6 +848,61 @@ const Game = () => {
                 </div>
 
                 <div style={{
+                    marginBottom: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    padding: '16px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'white', fontSize: '14px' }}>
+                        <input
+                            type="checkbox"
+                            checked={blindfoldMode}
+                            onChange={(e) => setBlindfoldMode(e.target.checked)}
+                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+                        <span>Blindfold Mode</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'white', fontSize: '14px' }}>
+                        <input
+                            type="checkbox"
+                            checked={isVoiceEnabled}
+                            onChange={(e) => setIsVoiceEnabled(e.target.checked)}
+                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+                        <span>Voice Commentary</span>
+                    </label>
+                </div>
+
+                {/* Opening Coach Section */}
+                {opening && (
+                    <div style={{
+                        marginBottom: '16px',
+                        padding: '16px',
+                        background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.15), rgba(167, 139, 250, 0.15))',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(96, 165, 250, 0.3)',
+                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
+                        animation: 'fadeIn 0.5s ease-out'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <GraduationCap size={18} style={{ color: '#60a5fa' }} />
+                            <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, color: 'white' }}>Opening Coach</h3>
+                        </div>
+                        <div style={{ color: 'white', fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
+                            {opening.name}
+                        </div>
+                        <div style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '12px', fontFamily: 'monospace' }}>
+                            ECO: {opening.eco}
+                        </div>
+                    </div>
+                )}
+
+                <div style={{
                     marginBottom: '24px',
                     padding: '16px',
                     background: 'rgba(255, 255, 255, 0.05)',
@@ -847,6 +929,10 @@ const Game = () => {
                         <div>
                             <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Total</p>
                             <p style={{ fontSize: '18px', fontWeight: 'bold', color: 'white' }}>{stats.totalGames}</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Avg Accuracy</p>
+                            <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#60a5fa' }}>{Math.round(stats.avgAccuracy)}%</p>
                         </div>
                     </div>
                 </div>
@@ -1150,114 +1236,111 @@ const Game = () => {
             }
 
             {/* Notification Modal */}
-            {
-                notification && (
+            {notification && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    backdropFilter: 'blur(5px)',
+                    zIndex: 3000,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    animation: 'modalScale 0.3s ease-out'
+                }}>
                     <div style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        background: 'rgba(0, 0, 0, 0.6)',
-                        backdropFilter: 'blur(5px)',
-                        zIndex: 3000,
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        animation: 'modalScale 0.3s ease-out'
+                        background: 'rgba(30, 30, 30, 0.9)',
+                        backdropFilter: 'blur(20px)',
+                        padding: '30px',
+                        borderRadius: '20px',
+                        border: `2px solid ${notification.type === 'success' ? '#4CAF50' : notification.type === 'error' ? '#f44336' : '#FFD700'}`,
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+                        textAlign: 'center',
+                        minWidth: '300px',
+                        maxWidth: '400px'
                     }}>
                         <div style={{
-                            background: 'rgba(30, 30, 30, 0.9)',
-                            backdropFilter: 'blur(20px)',
-                            padding: '30px',
-                            borderRadius: '20px',
-                            border: `2px solid ${notification.type === 'success' ? '#4CAF50' : notification.type === 'error' ? '#f44336' : '#FFD700'}`,
-                            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
-                            textAlign: 'center',
-                            minWidth: '300px',
-                            maxWidth: '400px'
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '50%',
+                            background: notification.type === 'success' ? 'rgba(76, 175, 80, 0.2)' : notification.type === 'error' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(255, 215, 0, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 20px auto',
+                            color: notification.type === 'success' ? '#4CAF50' : notification.type === 'error' ? '#f44336' : '#FFD700'
                         }}>
-                            <div style={{
-                                width: '60px',
-                                height: '60px',
-                                borderRadius: '50%',
-                                background: notification.type === 'success' ? 'rgba(76, 175, 80, 0.2)' : notification.type === 'error' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(255, 215, 0, 0.2)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                margin: '0 auto 20px auto',
-                                color: notification.type === 'success' ? '#4CAF50' : notification.type === 'error' ? '#f44336' : '#FFD700'
-                            }}>
-                                {notification.type === 'success' ? <Check size={32} /> : notification.type === 'error' ? <X size={32} /> : <AlertTriangle size={32} />}
-                            </div>
+                            {notification.type === 'success' ? <Check size={32} /> : notification.type === 'error' ? <X size={32} /> : <AlertTriangle size={32} />}
+                        </div>
 
-                            <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', color: 'white' }}>
-                                {notification.type === 'success' ? 'Success' : notification.type === 'error' ? 'Error' : 'Confirm Action'}
-                            </h3>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', color: 'white' }}>
+                            {notification.type === 'success' ? 'Success' : notification.type === 'error' ? 'Error' : 'Confirm Action'}
+                        </h3>
 
-                            <p style={{ margin: '0 0 24px 0', color: 'rgba(255, 255, 255, 0.8)', fontSize: '16px' }}>
-                                {notification.message}
-                            </p>
+                        <p style={{ margin: '0 0 24px 0', color: 'rgba(255, 255, 255, 0.8)', fontSize: '16px' }}>
+                            {notification.message}
+                        </p>
 
-                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                                {notification.type === 'confirm' ? (
-                                    <>
-                                        <button
-                                            onClick={() => setNotification(null)}
-                                            style={{
-                                                padding: '10px 20px',
-                                                borderRadius: '8px',
-                                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                                background: 'transparent',
-                                                color: 'white',
-                                                cursor: 'pointer',
-                                                fontSize: '14px',
-                                                fontWeight: 500
-                                            }}
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                notification.onConfirm?.();
-                                                // Don't close immediately if we want to show success message
-                                            }}
-                                            style={{
-                                                padding: '10px 20px',
-                                                borderRadius: '8px',
-                                                border: 'none',
-                                                background: '#FFD700',
-                                                color: 'black',
-                                                cursor: 'pointer',
-                                                fontSize: '14px',
-                                                fontWeight: 600
-                                            }}
-                                        >
-                                            Confirm
-                                        </button>
-                                    </>
-                                ) : (
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                            {notification.type === 'confirm' ? (
+                                <>
                                     <button
                                         onClick={() => setNotification(null)}
                                         style={{
-                                            padding: '10px 30px',
+                                            padding: '10px 20px',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                            background: 'transparent',
+                                            color: 'white',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: 500
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            notification.onConfirm?.();
+                                        }}
+                                        style={{
+                                            padding: '10px 20px',
                                             borderRadius: '8px',
                                             border: 'none',
-                                            background: notification.type === 'success' ? '#4CAF50' : '#f44336',
-                                            color: 'white',
+                                            background: '#FFD700',
+                                            color: 'black',
                                             cursor: 'pointer',
                                             fontSize: '14px',
                                             fontWeight: 600
                                         }}
                                     >
-                                        Close
+                                        Confirm
                                     </button>
-                                )}
-                            </div>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setNotification(null)}
+                                    style={{
+                                        padding: '10px 30px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: notification.type === 'success' ? '#4CAF50' : '#f44336',
+                                        color: 'white',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Close
+                                </button>
+                            )}
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
 
             {/* Game Over Modal */}
             {
@@ -1427,70 +1510,67 @@ const Game = () => {
             </div>
 
             {/* Save/Load Modal */}
-            {
-                saveLoadMode && (
-                    <SaveLoadModal
-                        mode={saveLoadMode}
-                        onClose={() => setSaveLoadMode(null)}
-                        onSave={(slotIndex) => {
-                            if (saveGame(slotIndex)) {
-                                setNotification({
-                                    type: 'success',
-                                    message: `Game saved to Slot ${slotIndex + 1}!`
-                                });
-                                setTimeout(() => setNotification(null), 2000);
-                            }
-                            setSaveLoadMode(null);
-                        }}
-                        onLoad={(slotIndex) => {
-                            if (loadGame(slotIndex)) {
-                                setNotification({
-                                    type: 'success',
-                                    message: `Game loaded from Slot ${slotIndex + 1}!`
-                                });
-                                setTimeout(() => setNotification(null), 2000);
-                            } else {
-                                setNotification({
-                                    type: 'error',
-                                    message: 'Failed to load game.'
-                                });
-                                setTimeout(() => setNotification(null), 2000);
-                            }
-                            setSaveLoadMode(null);
-                        }}
-                        onDelete={(slotIndex) => {
-                            deleteSave(slotIndex);
+            {(saveLoadMode === 'save' || saveLoadMode === 'load') && (
+                <SaveLoadModal
+                    mode={saveLoadMode}
+                    onClose={() => setSaveLoadMode(null)}
+                    onSave={(slotIndex) => {
+                        if (saveGame(slotIndex)) {
                             setNotification({
                                 type: 'success',
-                                message: `Slot ${slotIndex + 1} deleted!`
+                                message: `Game saved to Slot ${slotIndex + 1}!`
                             });
                             setTimeout(() => setNotification(null), 2000);
-                        }}
-                    />
-                )
-            }
+                        }
+                        setSaveLoadMode(null);
+                    }}
+                    onLoad={(slotIndex) => {
+                        if (loadGame(slotIndex)) {
+                            setNotification({
+                                type: 'success',
+                                message: `Game loaded from Slot ${slotIndex + 1}!`
+                            });
+                            setTimeout(() => setNotification(null), 2000);
+                        } else {
+                            setNotification({
+                                type: 'error',
+                                message: 'Failed to load game.'
+                            });
+                            setTimeout(() => setNotification(null), 2000);
+                        }
+                        setSaveLoadMode(null);
+                    }}
+                    onDelete={(slotIndex) => {
+                        deleteSave(slotIndex);
+                        setNotification({
+                            type: 'success',
+                            message: `Slot ${slotIndex + 1} deleted!`
+                        });
+                        setTimeout(() => setNotification(null), 2000);
+                    }}
+                />
+            )}
 
             {/* PGN Modal */}
-            {
-                pgnMode && (
-                    <PGNModal
-                        mode={pgnMode}
-                        currentPGN={game.pgn()}
-                        onClose={() => setPGNMode(null)}
-                        onImport={(pgn) => {
-                            const success = importPGN(pgn);
-                            if (success) {
-                                setNotification({
-                                    type: 'success',
-                                    message: 'Game imported successfully!'
-                                });
-                                setTimeout(() => setNotification(null), 2000);
-                            }
-                            return success;
-                        }}
-                    />
-                )
-            }
+            {(pgnMode === 'export' || pgnMode === 'import') && (
+                <PGNModal
+                    mode={pgnMode}
+                    currentPGN={game.pgn()}
+                    onClose={() => setPGNMode(null)}
+                    onImport={(pgn) => {
+                        const success = importPGN(pgn);
+                        if (success) {
+                            setNotification({
+                                type: 'success',
+                                message: 'Game imported successfully!'
+                            });
+                            setTimeout(() => setNotification(null), 2000);
+                        }
+                        return success;
+                    }}
+                />
+            )}
+
             {/* Multiplayer Menu */}
             {
                 showMultiplayerMenu && (
@@ -1565,18 +1645,16 @@ const Game = () => {
             }
 
             {/* Encrypted Chat */}
-            {
-                gameMode === 'online' && (
-                    <Chat
-                        isOpen={isChatOpen}
-                        onToggle={() => setIsChatOpen(!isChatOpen)}
-                        isOpponentConnected={isOpponentConnected}
-                        members={members}
-                        myId={myId}
-                    />
-                )
-            }
-        </div >
+            {gameMode === 'online' && (
+                <Chat
+                    isOpen={isChatOpen}
+                    onToggle={() => setIsChatOpen(!isChatOpen)}
+                    isOpponentConnected={isOpponentConnected}
+                    members={members}
+                    myId={myId}
+                />
+            )}
+        </div>
     );
 };
 

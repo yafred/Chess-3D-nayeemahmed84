@@ -21,6 +21,7 @@ interface SceneProps {
     chatHighlightSquares: Square[];
     pieceTheme: PieceTheme;
     environmentPreset: EnvironmentPreset;
+    blindfoldMode: boolean;
 }
 
 const CameraController = ({ playerColor }: { playerColor: 'w' | 'b' }) => {
@@ -37,7 +38,7 @@ const CameraController = ({ playerColor }: { playerColor: 'w' | 'b' }) => {
     return null;
 };
 
-export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, playerColor, hintMove, attackedSquares, opponentSelection, isSpectator, chatHighlightSquares, pieceTheme, environmentPreset }: SceneProps) => {
+export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, playerColor, hintMove, attackedSquares, opponentSelection, isSpectator, chatHighlightSquares, pieceTheme, environmentPreset, blindfoldMode }: SceneProps) => {
     const [isInteracting, setIsInteracting] = useState(false);
 
     return (
@@ -67,6 +68,7 @@ export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkS
                 isSpectator={isSpectator}
                 chatHighlightSquares={chatHighlightSquares}
                 pieceTheme={pieceTheme}
+                blindfoldMode={blindfoldMode}
             />
         </>
     );

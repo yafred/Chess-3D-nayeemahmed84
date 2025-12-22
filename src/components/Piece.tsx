@@ -19,6 +19,7 @@ interface PieceProps {
     onInteractionStart: () => void;
     onInteractionEnd: () => void;
     theme?: PieceTheme;
+    blindfoldMode?: boolean;
 }
 
 type GLTFResult = GLTF & {
@@ -30,7 +31,7 @@ type GLTFResult = GLTF & {
     };
 };
 
-export const Piece = ({ type, color, position, isCaptured, onDragStart, onDragEnd, onSelect, onInteractionStart, onInteractionEnd, theme = 'glass' }: PieceProps) => {
+export const Piece = ({ type, color, position, isCaptured, onDragStart, onDragEnd, onSelect, onInteractionStart, onInteractionEnd, theme = 'glass', blindfoldMode = false }: PieceProps) => {
     const isWhite = color === 'w';
     const materialColor = isWhite ? '#ffffff' : '#555555';
     const { camera, raycaster, gl } = useThree();
@@ -267,6 +268,7 @@ export const Piece = ({ type, color, position, isCaptured, onDragStart, onDragEn
                 onPointerLeave={() => !isDragging && (document.body.style.cursor = 'auto')}
                 geometry={geometry}
                 scale={[scale, scale, scale]}
+                visible={!blindfoldMode}
                 rotation={[0, rotationY, 0]}
             >
                 {!geometry && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}

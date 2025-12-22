@@ -18,9 +18,10 @@ interface BoardProps {
     isSpectator: boolean;
     chatHighlightSquares: Square[];
     pieceTheme: PieceTheme;
+    blindfoldMode: boolean;
 }
 
-export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, hintMove, attackedSquares, opponentSelection, onInteractionChange, isSpectator, chatHighlightSquares, pieceTheme }: BoardProps) => {
+export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, hintMove, attackedSquares, opponentSelection, onInteractionChange, isSpectator, chatHighlightSquares, pieceTheme, blindfoldMode }: BoardProps) => {
     const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
     const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
     const [draggedPiece, setDraggedPiece] = useState<{ id: string, type: string, color: string, startSquare: Square } | null>(null);
@@ -250,6 +251,7 @@ export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkS
                         onInteractionStart={handlePieceInteractionStart}
                         onInteractionEnd={handlePieceInteractionEnd}
                         theme={pieceTheme}
+                        blindfoldMode={blindfoldMode}
                     />
                 );
             })}
