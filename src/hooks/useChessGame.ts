@@ -15,6 +15,15 @@ export interface PieceState {
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 export type GameMode = 'ai' | 'local' | 'online';
+export type PieceTheme = 'glass' | 'metal' | 'marble' | 'wood';
+export type EnvironmentPreset = 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
+
+export interface PlayerStats {
+    wins: number;
+    losses: number;
+    draws: number;
+    totalGames: number;
+}
 
 import { multiplayerService } from '../services/MultiplayerService';
 
@@ -34,6 +43,8 @@ interface SavedGame {
     volume: number;
     isMuted: boolean;
     gameMode: GameMode;
+    pieceTheme: PieceTheme;
+    environment: EnvironmentPreset;
     initialTime?: number;
 }
 
@@ -104,6 +115,9 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
     const [timerActive, setTimerActive] = useState(false);
 
     const [gameMode, setGameMode] = useState<GameMode>(gameModeProp);
+    const [pieceTheme, setPieceTheme] = useState<PieceTheme>('glass');
+    const [environment, setEnvironment] = useState<EnvironmentPreset>('forest');
+    const [stats, setStats] = useState<PlayerStats>({ wins: 0, losses: 0, draws: 0, totalGames: 0 });
 
     // Play as Black state
     const [playerColor, setPlayerColor] = useState<'w' | 'b'>('w');
@@ -160,6 +174,12 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             localStorage.getItem(`chess_save_slot_${i}`)
         ).some(save => save !== null);
         setHasSavedGame(hasAnySave);
+
+        // Load stats
+        const savedStats = localStorage.getItem('chess_player_stats');
+        if (savedStats) {
+            setStats(JSON.parse(savedStats));
+        }
     }, []);
 
     // Timer Logic
@@ -373,11 +393,28 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
                 if (gameCopy.isGameOver()) {
                     setIsGameOver(true);
                     setTimerActive(false);
+                    let result: 'win' | 'loss' | 'draw' = 'draw';
                     if (gameCopy.isCheckmate()) {
+                        const playerWon = gameCopy.turn() !== playerColor;
                         setWinner(gameCopy.turn() === 'w' ? 'Black' : 'White');
+                        result = playerWon ? 'win' : 'loss';
                     } else {
                         setWinner('Draw');
+                        result = 'draw';
                     }
+
+                    // Update stats
+                    setStats(prev => {
+                        const newStats = {
+                            ...prev,
+                            wins: result === 'win' ? prev.wins + 1 : prev.wins,
+                            losses: result === 'loss' ? prev.losses + 1 : prev.losses,
+                            draws: result === 'draw' ? prev.draws + 1 : prev.draws,
+                            totalGames: prev.totalGames + 1
+                        };
+                        localStorage.setItem('chess_player_stats', JSON.stringify(newStats));
+                        return newStats;
+                    });
                 }
 
                 return true;
@@ -922,6 +959,8 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             volume,
             isMuted,
             gameMode,
+            pieceTheme,
+            environment,
             initialTime
         };
 
@@ -941,7 +980,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
         setHasSavedGame(hasAnySave);
 
         return true;
-    }, [game, isGameOver, winner, difficulty, history, undoneMoves, evaluation, whiteTime, blackTime, playerColor, volume, isMuted, gameMode, initialTime]);
+    }, [game, isGameOver, winner, difficulty, history, undoneMoves, evaluation, whiteTime, blackTime, playerColor, volume, isMuted, gameMode, pieceTheme, initialTime]);
 
     const loadGame = useCallback((slotIndex: number = 0) => {
         const savedData = localStorage.getItem(`chess_save_slot_${slotIndex}`);
@@ -970,6 +1009,8 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
             setVolume(state.volume);
             setIsMuted(state.isMuted);
             setGameMode(state.gameMode || 'ai');
+            setPieceTheme(state.pieceTheme || 'glass');
+            setEnvironment(state.environment || 'forest'); // Corrected and added environment loading
             if (state.initialTime) setInitialTime(state.initialTime);
 
             // Restore Pieces Visuals
@@ -1131,8 +1172,7 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
         hasSavedGame,
         navigateToMove,
         importPGN,
-        initialTime,
-        setInitialTime,
+        initialTime, setInitialTime,
         opening,
         opponentSelection,
         isOpponentConnected,
@@ -1140,6 +1180,11 @@ export const useChessGame = (gameModeProp: 'local' | 'ai' = 'ai') => {
         setIsSpectator,
         handleSquareSelect,
         members,
-        myId
+        myId,
+        pieceTheme,
+        setPieceTheme,
+        environment,
+        setEnvironment,
+        stats
     };
 };

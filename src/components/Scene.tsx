@@ -4,7 +4,7 @@ import { Square } from 'chess.js';
 import { useThree } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
 
-import { PieceState } from '../hooks/useChessGame';
+import { PieceState, PieceTheme, EnvironmentPreset } from '../hooks/useChessGame';
 
 interface SceneProps {
     onMove: (from: Square, to: Square) => boolean;
@@ -19,6 +19,8 @@ interface SceneProps {
     opponentSelection: Square | null;
     isSpectator: boolean;
     chatHighlightSquares: Square[];
+    pieceTheme: PieceTheme;
+    environmentPreset: EnvironmentPreset;
 }
 
 const CameraController = ({ playerColor }: { playerColor: 'w' | 'b' }) => {
@@ -35,7 +37,7 @@ const CameraController = ({ playerColor }: { playerColor: 'w' | 'b' }) => {
     return null;
 };
 
-export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, playerColor, hintMove, attackedSquares, opponentSelection, isSpectator, chatHighlightSquares }: SceneProps) => {
+export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, playerColor, hintMove, attackedSquares, opponentSelection, isSpectator, chatHighlightSquares, pieceTheme, environmentPreset }: SceneProps) => {
     const [isInteracting, setIsInteracting] = useState(false);
 
     return (
@@ -49,7 +51,7 @@ export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkS
             />
             <ambientLight intensity={0.2} />
             <pointLight position={[10, 10, 10]} intensity={1.5} castShadow />
-            <Environment preset="forest" background blur={0.5} />
+            <Environment preset={environmentPreset} background blur={0.5} />
 
             <Board
                 onMove={onMove}
@@ -64,6 +66,7 @@ export const Scene = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkS
                 onInteractionChange={setIsInteracting}
                 isSpectator={isSpectator}
                 chatHighlightSquares={chatHighlightSquares}
+                pieceTheme={pieceTheme}
             />
         </>
     );

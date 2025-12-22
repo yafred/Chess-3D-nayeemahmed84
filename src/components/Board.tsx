@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Square } from 'chess.js';
 import { RoundedBox } from '@react-three/drei';
 import { Piece } from './Piece';
-import { PieceState } from '../hooks/useChessGame';
+import { PieceState, PieceTheme } from '../hooks/useChessGame';
 
 interface BoardProps {
     onMove: (from: Square, to: Square) => boolean;
@@ -17,9 +17,10 @@ interface BoardProps {
     onInteractionChange: (isInteracting: boolean) => void;
     isSpectator: boolean;
     chatHighlightSquares: Square[];
+    pieceTheme: PieceTheme;
 }
 
-export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, hintMove, attackedSquares, opponentSelection, onInteractionChange, isSpectator, chatHighlightSquares }: BoardProps) => {
+export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkSquare, hintMove, attackedSquares, opponentSelection, onInteractionChange, isSpectator, chatHighlightSquares, pieceTheme }: BoardProps) => {
     const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
     const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
     const [draggedPiece, setDraggedPiece] = useState<{ id: string, type: string, color: string, startSquare: Square } | null>(null);
@@ -248,6 +249,7 @@ export const Board = ({ onMove, turn, getPossibleMoves, pieces, lastMove, checkS
                         onSelect={() => handleSquareClick(p.square)}
                         onInteractionStart={handlePieceInteractionStart}
                         onInteractionEnd={handlePieceInteractionEnd}
+                        theme={pieceTheme}
                     />
                 );
             })}

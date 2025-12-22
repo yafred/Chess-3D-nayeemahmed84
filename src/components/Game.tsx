@@ -47,7 +47,9 @@ const Game = () => {
         volume, setVolume, isMuted, toggleMute,
         saveGame, loadGame, deleteSave, hasSavedGame, game, navigateToMove, importPGN,
         gameMode, setGameMode, capturedPieces, materialAdvantage, initialTime, setInitialTime,
-        opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator, members, myId
+        opening, opponentSelection, isOpponentConnected, isSpectator, setIsSpectator, members, myId,
+        pieceTheme, setPieceTheme, environment, setEnvironment,
+        stats
     } = useChessGame();
 
     const [isPanelVisible, setIsPanelVisible] = useState(true);
@@ -177,6 +179,25 @@ const Game = () => {
                 case 'p':
                     e.preventDefault();
                     setIsPanelVisible(!isPanelVisible);
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    toggleMute();
+                    break;
+                case 'a':
+                    if (isGameOver) {
+                        e.preventDefault();
+                        setShowAnalysis(true);
+                    }
+                    break;
+                case '1':
+                    if (gameMode === 'ai') { e.preventDefault(); setDifficulty('Easy'); }
+                    break;
+                case '2':
+                    if (gameMode === 'ai') { e.preventDefault(); setDifficulty('Medium'); }
+                    break;
+                case '3':
+                    if (gameMode === 'ai') { e.preventDefault(); setDifficulty('Hard'); }
                     break;
             }
         };
@@ -312,6 +333,8 @@ const Game = () => {
                         opponentSelection={opponentSelection}
                         isSpectator={isSpectator}
                         chatHighlightSquares={chatHighlightSquares}
+                        pieceTheme={pieceTheme}
+                        environmentPreset={environment}
                     />
                 </React.Suspense>
             </Canvas>
@@ -741,6 +764,91 @@ const Game = () => {
                     </div>
 
 
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginBottom: '4px' }}>Piece Theme</label>
+                    <select
+                        value={pieceTheme}
+                        onChange={(e) => setPieceTheme(e.target.value as any)}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            color: 'white',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '8px',
+                            outline: 'none',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                        }}
+                    >
+                        <option value="glass">Glass (Default)</option>
+                        <option value="metal">Metallic (Gold/Silver)</option>
+                        <option value="marble">Marble (Classic)</option>
+                        <option value="wood">Wooden (Natural)</option>
+                    </select>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginBottom: '4px' }}>Environment</label>
+                    <select
+                        value={environment}
+                        onChange={(e) => setEnvironment(e.target.value as any)}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            color: 'white',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '8px',
+                            outline: 'none',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                        }}
+                    >
+                        <option value="apartment">Apartment</option>
+                        <option value="city">City</option>
+                        <option value="dawn">Dawn</option>
+                        <option value="forest">Forest</option>
+                        <option value="lobby">Lobby</option>
+                        <option value="night">Night</option>
+                        <option value="park">Park</option>
+                        <option value="studio">Studio</option>
+                        <option value="sunset">Sunset</option>
+                        <option value="warehouse">Warehouse</option>
+                    </select>
+                </div>
+
+                <div style={{
+                    marginBottom: '24px',
+                    padding: '16px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Trophy size={16} className="text-yellow-500" />
+                        Your Statistics
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Wins</p>
+                            <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#4ade80' }}>{stats.wins}</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Losses</p>
+                            <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#f87171' }}>{stats.losses}</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Draws</p>
+                            <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#a78bfa' }}>{stats.draws}</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Total</p>
+                            <p style={{ fontSize: '18px', fontWeight: 'bold', color: 'white' }}>{stats.totalGames}</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div style={{ marginBottom: '16px' }}>

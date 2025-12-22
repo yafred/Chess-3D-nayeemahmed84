@@ -4,6 +4,7 @@ import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { Square } from 'chess.js';
 import { GLTF } from 'three-stdlib';
+import { PieceTheme } from '../hooks/useChessGame';
 
 interface PieceProps {
     id: string;
@@ -17,6 +18,7 @@ interface PieceProps {
     onSelect: () => void;
     onInteractionStart: () => void;
     onInteractionEnd: () => void;
+    theme?: PieceTheme;
 }
 
 type GLTFResult = GLTF & {
@@ -28,7 +30,7 @@ type GLTFResult = GLTF & {
     };
 };
 
-export const Piece = ({ type, color, position, isCaptured, onDragStart, onDragEnd, onSelect, onInteractionStart, onInteractionEnd }: PieceProps) => {
+export const Piece = ({ type, color, position, isCaptured, onDragStart, onDragEnd, onSelect, onInteractionStart, onInteractionEnd, theme = 'glass' }: PieceProps) => {
     const isWhite = color === 'w';
     const materialColor = isWhite ? '#ffffff' : '#555555';
     const { camera, raycaster, gl } = useThree();
@@ -268,17 +270,46 @@ export const Piece = ({ type, color, position, isCaptured, onDragStart, onDragEn
                 rotation={[0, rotationY, 0]}
             >
                 {!geometry && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}
-                <meshPhysicalMaterial
-                    color={materialColor}
-                    roughness={0.02}
-                    metalness={0.1}
-                    transmission={0.95}
-                    thickness={1.0}
-                    clearcoat={1}
-                    clearcoatRoughness={0.02}
-                    ior={1.5}
-                    reflectivity={0.9}
-                />
+                {theme === 'glass' && (
+                    <meshPhysicalMaterial
+                        color={materialColor}
+                        roughness={0.02}
+                        metalness={0.1}
+                        transmission={0.95}
+                        thickness={1.0}
+                        clearcoat={1}
+                        clearcoatRoughness={0.02}
+                        ior={1.5}
+                        reflectivity={0.9}
+                    />
+                )}
+                {theme === 'metal' && (
+                    <meshPhysicalMaterial
+                        color={isWhite ? '#ffd700' : '#c0c0c0'} // Gold for white, Silver for black
+                        roughness={0.1}
+                        metalness={1.0}
+                        clearcoat={1}
+                        clearcoatRoughness={0.1}
+                    />
+                )}
+                {theme === 'marble' && (
+                    <meshPhysicalMaterial
+                        color={isWhite ? '#ffffff' : '#222222'}
+                        roughness={0.05}
+                        metalness={0.0}
+                        clearcoat={1.0}
+                        clearcoatRoughness={0.05}
+                        reflectivity={0.5}
+                    />
+                )}
+                {theme === 'wood' && (
+                    <meshPhysicalMaterial
+                        color={isWhite ? '#d2b48c' : '#4b3621'} // Tan for white, Dark brown for black
+                        roughness={0.8}
+                        metalness={0.0}
+                        clearcoat={0.1}
+                    />
+                )}
             </mesh>
         </group>
     );
