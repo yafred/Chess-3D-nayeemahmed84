@@ -417,6 +417,7 @@ export function PuzzleMode({ onExit }: PuzzleModeProps) {
                             attackedSquares={[]}
                             opponentSelection={null}
                             isSpectator={status !== 'playing'}
+                            chatHighlightSquares={[]}
                         />
                     </React.Suspense>
                 </Canvas>

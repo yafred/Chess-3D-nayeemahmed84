@@ -115,6 +115,7 @@ const TutorialMode = ({ onExit }: TutorialModeProps) => {
                         attackedSquares={[]}
                         opponentSelection={null}
                         isSpectator={false}
+                        chatHighlightSquares={[]}
                     />
                 </Canvas>
             </div>
