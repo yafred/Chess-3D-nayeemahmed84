@@ -1,0 +1,6 @@
+
+> chess-game@0.0.0 build
+> tsc -b && vite build
+
+src/components/PuzzleMode.tsx(408,26): error TS2739: Type '{ onMove: (from: Square, to: Square) => boolean; turn: "w" | "b"; getPossibleMoves: (square: Square) => string[]; pieces: PieceState[]; lastMove: { ...; } | null; ... 6 more ...; chatHighlightSquares: never[]; }' is missing the following properties from type 'SceneProps': pieceTheme, environmentPreset, blindfoldMode
+src/components/TutorialMode.tsx(98,22): error TS2739: Type '{ onMove: (from: Square, to: Square) => true; turn: Color; getPossibleMoves: (sq: Square) => Square[]; pieces: any[]; lastMove: { from: Square; to: Square; } | null; ... 6 more ...; chatHighlightSquares: never[]; }' is missing the following properties from type 'SceneProps': pieceTheme, environmentPreset, blindfoldMode

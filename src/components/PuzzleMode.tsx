@@ -418,6 +418,9 @@ export function PuzzleMode({ onExit }: PuzzleModeProps) {
                             opponentSelection={null}
                             isSpectator={status !== 'playing'}
                             chatHighlightSquares={[]}
+                            pieceTheme="glass"
+                            environmentPreset="forest"
+                            blindfoldMode={false}
                         />
                     </React.Suspense>
                 </Canvas>

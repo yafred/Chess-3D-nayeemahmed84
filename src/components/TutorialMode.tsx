@@ -116,6 +116,9 @@ const TutorialMode = ({ onExit }: TutorialModeProps) => {
                         opponentSelection={null}
                         isSpectator={false}
                         chatHighlightSquares={[]}
+                        pieceTheme="glass"
+                        environmentPreset="forest"
+                        blindfoldMode={false}
                     />
                 </Canvas>
             </div>
